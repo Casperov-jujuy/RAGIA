@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Entornos virtuales
+.venv/
+venv/
+ENV/
+env/
+
+# Variables de entorno y secretos
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Datos y persistencia local (ChromaDB y subidas)
+data/chroma_db/*
+!data/chroma_db/.gitkeep
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Testing & Cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db

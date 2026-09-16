@@ -1,0 +1,17 @@
+# Framework Web & Servidor
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# Configuración y Validación
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+
+# LLM y Embeddings (Google Gemini)
+google-genai>=0.1.1
+
+# Base de datos vectorial
+chromadb>=0.5.5
+
+# Parsers de documentos (.pdf)
+pypdf>=4.3.0
