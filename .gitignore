@@ -34,10 +34,15 @@ env/
 *.key
 
 # Datos y persistencia local (ChromaDB y subidas)
-data/chroma_db/*
-!data/chroma_db/.gitkeep
-data/uploads/*
-!data/uploads/.gitkeep
+**/data/chroma_db/*
+!**/data/chroma_db/.gitkeep
+**/data/uploads/*
+!**/data/uploads/.gitkeep
+
+# Frontend (Preparado para futuro)
+node_modules/
+.next/
+dist/
 
 # Testing & Cobertura
 .pytest_cache/

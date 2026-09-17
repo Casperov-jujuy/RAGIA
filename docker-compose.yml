@@ -1,0 +1,20 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ragia-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      # Montaje de código para recarga en caliente en desarrollo
+      - ./backend/app:/app/app
+      # Persistencia de la base de datos vectorial ChromaDB
+      - ./backend/data/chroma_db:/app/data/chroma_db
+      # Persistencia de archivos subidos
+      - ./backend/data/uploads:/app/data/uploads
+    environment:
+      - PYTHONUNBUFFERED=1
