@@ -2,27 +2,27 @@
 
 **RAGIA** es un sistema backend de **Generación Aumentada por Recuperación** (*Retrieval-Augmented Generation* - **RAG**) diseñado para ingestar, indexar y consultar documentos personales en formatos **Markdown (`.md`)** y **PDF (`.pdf`)**.
 
-El proyecto utiliza **FastAPI**, **Google Gemini API** (para generación y embeddings), **ChromaDB** para el almacenamiento vectorial persistente y está completamente contenerizado con **Docker Compose**.
+El proyecto está diseñado bajo una arquitectura modular (preparada para monorepo con backend y frontend independientes), impulsado por **FastAPI**, **Google Gemini API** (para generación y embeddings), **ChromaDB** para almacenamiento vectorial persistente y completamente contenerizado con **Docker Compose**.
 
 ---
 
 ## 🎯 Características Principales
 
 - 📄 **Enfoque Estricto en Texto (`.md` y `.pdf`):**
-  - Parser de **Markdown** con preservación de estructura de títulos y encabezados.
-  - Parser de **PDF** enfocado en extracción de texto limpio página por página (sin procesamiento de imágenes ni capas binarias innecesarias).
-  - Filtro estricto que rechaza cualquier otro formato de archivo no permitido.
+  - Validador estricto a nivel de API: rechaza inmediatamente cualquier archivo que no sea `.md` o `.pdf` (imágenes, ejecutables, formatos de Office, etc.).
+  - Parser de **Markdown** con preservación de estructura de títulos y encabezados *(en desarrollo)*.
+  - Parser de **PDF** enfocado en extracción de texto limpio página por página *(en desarrollo)*.
 - 🤖 **Potenciado por Google Gemini:**
   - Embeddings de alta dimensionalidad con `text-embedding-004`.
   - Respuestas contextualizadas y libres de alucinaciones con modelos Gemini Flash (`gemini-1.5-flash` / `gemini-2.0-flash`).
 - 💾 **Persistencia Vectorial (ChromaDB):**
-  - Almacén de vectores embebido que persiste sus datos en un volumen local montado (`./data/chroma_db`), evitando la necesidad de servicios externos pesados.
+  - Almacén de vectores embebido que persiste sus datos en un volumen local montado (`./backend/data/chroma_db`), evitando servicios externos pesados.
 - 🐳 **Contenerizado con Docker Compose:**
-  - Despliegue en un solo comando con recarga en caliente (*hot-reload*) para desarrollo ágil.
+  - Despliegue en un solo comando con recarga en caliente (*hot-reload*) para desarrollo ágil y volúmenes montados.
 - 📮 **Listo para Postman y Swagger UI:**
   - Endpoints REST para subida multipart de archivos y consultas RAG, testeables directamente vía Postman o en `http://localhost:8000/docs`.
-- 📌 **Citas y Fuentes Verificables:**
-  - Cada respuesta generada incluye las fuentes exactas de donde se extrajo la información (nombre de archivo, página o sección y fragmento original).
+- 🧪 **Suite de Pruebas Automatizadas:**
+  - Tests unitarios y de integración HTTP (con `TestClient`) para asegurar la solidez de cada paso implementado.
 
 ---
 
@@ -32,8 +32,8 @@ El proyecto utiliza **FastAPI**, **Google Gemini API** (para generación y embed
        [ Archivo .md o .pdf ]
                  │
                  ▼
-       [ 1. Validador de Formato ] ──> Rechaza cualquier otro formato
-                 │
+       [ 1. Validador Estricto ] ──> Rechaza imágenes u otros formatos (HTTP 400)
+                 │                   [✅ IMPLEMENTADO]
                  ▼
        [ 2. Parser Especializado ]
         ├── .md  ──> Estructura jerárquica de títulos
@@ -46,7 +46,7 @@ El proyecto utiliza **FastAPI**, **Google Gemini API** (para generación y embed
        [ 4. Gemini Embeddings ] ─────> Vectorización (text-embedding-004)
                  │
                  ▼
-       [ 5. ChromaDB Store ] ────────> Persistencia en ./data/chroma_db
+       [ 5. ChromaDB Store ] ────────> Persistencia en ./backend/data/chroma_db
                  │
                  ▲
  ┌───────────────┴──────────────────────────────┐
@@ -72,7 +72,8 @@ El proyecto utiliza **FastAPI**, **Google Gemini API** (para generación y embed
 | **Modelos & LLM** | [Google Gemini API](https://ai.google.dev/) | `text-embedding-004` (vectores) y `gemini-1.5-flash` (generación) |
 | **Vector Database** | [ChromaDB](https://www.trychroma.com/) | Base de datos vectorial persistida en volumen local |
 | **Extracción de Texto** | `pypdf` + Parser nativo MD | Lectura limpia y eficiente sin OCR pesado |
-| **Entorno & Despliegue**| Docker & Docker Compose | Contenedores portables con volúmenes montados |
+| **Contenerización** | Docker & Docker Compose | Contenedores portables con recarga en caliente |
+| **Testing** | `unittest` / `pytest` + `TestClient` | Cobertura de validadores y endpoints HTTP |
 
 ---
 
@@ -80,35 +81,36 @@ El proyecto utiliza **FastAPI**, **Google Gemini API** (para generación y embed
 
 ```text
 RAGIA/
-├── docker-compose.yml        # Orquestación de Docker (backend + volúmenes)
-├── Dockerfile                # Imagen optimizada Python 3.11-slim
-├── requirements.txt          # Dependencias del proyecto
-├── .env.example              # Plantilla de variables de entorno
-├── .gitignore                # Reglas de exclusión para Git
-├── README.md                 # Documentación del proyecto
-├── data/
-│   ├── chroma_db/            # Directorio persistente de ChromaDB (ignorado en git)
-│   ├── uploads/              # Archivos procesados temporalmente (ignorado en git)
-│   └── sample_docs/          # Documentos de prueba (.md y .pdf)
-└── app/
-    ├── main.py               # Punto de entrada de FastAPI y rutas
-    ├── core/
-    │   ├── config.py         # Configuración y lectura de variables (.env)
-    │   └── logging.py        # Configuración de logs
-    ├── models/
-    │   └── schemas.py        # Modelos Pydantic (Request / Response)
-    ├── ingestion/
-    │   ├── validator.py      # Filtro estricto de extensiones (.md, .pdf)
-    │   ├── md_parser.py      # Extractor de Markdown
-    │   ├── pdf_parser.py     # Extractor de texto PDF
-    │   └── chunker.py        # Estrategia de fragmentación con metadatos
-    ├── services/
-    │   ├── gemini_service.py # Interacción con la API de Google Gemini
-    │   └── vector_store.py   # Operaciones sobre ChromaDB
-    └── api/
-        └── v1/
-            ├── endpoints_documents.py  # Endpoints de subida y gestión
-            └── endpoints_rag.py        # Endpoint de consulta RAG
+├── docker-compose.yml            # Orquestación Docker (servicio backend + volúmenes)
+├── .gitignore                    # Reglas globales de exclusión para Git
+├── README.md                     # Documentación principal del proyecto
+│
+├── backend/                      # Módulo aislado del Backend
+│   ├── Dockerfile                # Imagen optimizada Python 3.11-slim
+│   ├── requirements.txt          # Dependencias de Python (FastAPI, ChromaDB, Gemini...)
+│   ├── .env.example              # Plantilla de variables de entorno
+│   ├── .env                      # Variables locales y API Keys (ignorado por Git)
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py               # Punto de entrada FastAPI, CORS y rutas base
+│   │   ├── api/
+│   │   │   ├── __init__.py
+│   │   │   └── v1/
+│   │   │       ├── __init__.py
+│   │   │       └── endpoints_documents.py # Endpoints de documentos (/upload)
+│   │   └── ingestion/
+│   │       ├── __init__.py
+│   │       └── validator.py      # Validador estricto (.md y .pdf)
+│   ├── data/
+│   │   ├── chroma_db/            # Almacén persistente de ChromaDB (ignorado por Git)
+│   │   ├── uploads/              # Almacén temporal de subidas (ignorado por Git)
+│   │   └── sample_docs/          # Documentos de prueba de ejemplo
+│   └── tests/
+│       ├── __init__.py
+│       ├── test_validator.py     # Tests unitarios del validador de archivos
+│       └── test_api_upload.py    # Tests de integración del endpoint de subida
+│
+└── frontend/                     # (Espacio reservado para futura UI)
 ```
 
 ---
@@ -117,75 +119,80 @@ RAGIA/
 
 ### 1. Prerrequisitos
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado y en ejecución.
-- Una API Key de **Google Gemini** ([Obtener aquí](https://aistudio.google.com/)).
+- Una API Key de **Google Gemini** ([Obtener en Google AI Studio](https://aistudio.google.com/)).
 
 ### 2. Configurar variables de entorno
-Crea tu archivo `.env` a partir de la plantilla:
+Crea tu archivo `.env` a partir de la plantilla dentro de `backend/`:
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
-Edita `.env` y coloca tu API Key:
+Edita `backend/.env` y coloca tu API Key:
 ```env
-GEMINI_API_KEY=tu_api_key_aqui
+GEMINI_API_KEY=tu_api_key_de_gemini_aqui
 CHROMA_PERSIST_DIR=/app/data/chroma_db
 UPLOAD_DIR=/app/data/uploads
 ```
 
 ### 3. Iniciar el servicio con Docker Compose
+Desde la raíz del proyecto:
+
 ```bash
 docker compose up --build
 ```
+*(Para ejecutarlo en segundo plano agrega la bandera `-d`: `docker compose up --build -d`)*
+
 La API estará lista y disponible en:
-- **API Base:** `http://localhost:8000`
-- **Documentación Interactiva (Swagger):** `http://localhost:8000/docs`
+- **Bienvenida:** `http://localhost:8000/`
+- **Salud del servicio:** `http://localhost:8000/health`
+- **Documentación Interactiva (Swagger UI):** `http://localhost:8000/docs`
+- **Documentación Alternativa (ReDoc):** `http://localhost:8000/redoc`
 
 ---
 
-## 📮 Endpoints para Probar en Postman
+## 📮 Estado de Endpoints (Pruebas con Postman y Swagger)
 
-| Método | Endpoint | Tipo | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | — | Comprobación de estado del servicio |
-| `POST` | `/api/v1/documents/upload` | `multipart/form-data` | Sube e indexa un archivo `.md` o `.pdf` (campo: `file`) |
-| `GET` | `/api/v1/documents` | — | Lista todos los documentos actualmente indexados |
-| `DELETE` | `/api/v1/documents/{filename}` | — | Elimina un documento y todos sus vectores de ChromaDB |
-| `POST` | `/api/v1/rag/query` | `application/json` | Realiza una pregunta contextualizada sobre los documentos |
+| Método | Endpoint | Estado | Descripción |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/` | ✅ Listo | Mensaje de bienvenida y enlaces a documentación |
+| `GET` | `/health` | ✅ Listo | Comprobación de estado y salud del backend |
+| `POST` | `/api/v1/documents/upload` | ✅ Listo | Valida y recibe archivos `multipart` (**solo `.md` y `.pdf`**, campo: `file`) |
+| `GET` | `/api/v1/documents` | ⏳ Pendiente | Listado de documentos indexados en ChromaDB |
+| `DELETE` | `/api/v1/documents/{filename}` | ⏳ Pendiente | Eliminación de documento y vectores asociados |
+| `POST` | `/api/v1/rag/query` | ⏳ Pendiente | Consulta RAG con contexto y citas de fuentes |
 
-### Ejemplo de Payload para `/api/v1/rag/query`:
-```json
-{
-  "question": "¿Cuáles son los puntos clave mencionados en el informe?"
-}
-```
+### 🧪 Probar Validación en Postman:
+1. Petición: `POST http://localhost:8000/api/v1/documents/upload`
+2. Pestaña **Body** ➔ **form-data** ➔ Key: `file` (tipo File).
+3. **Casos válidos (`.md`, `.pdf`):** Retorna `200 OK` con estado `"approved"`.
+4. **Casos inválidos (`.png`, `.jpg`, `.txt`, `.docx`, etc.):** Retorna `400 Bad Request` con mensaje explicativo de rechazo inmediato.
 
-### Ejemplo de Respuesta:
-```json
-{
-  "answer": "De acuerdo con el documento...",
-  "sources": [
-    {
-      "filename": "informe_tecnico.pdf",
-      "page": 3,
-      "snippet": "Los puntos clave a considerar en el despliegue son...",
-      "score": 0.89
-    }
-  ]
-}
+---
+
+## 🧪 Ejecución de Pruebas Automatizadas
+
+Para correr la suite de pruebas unitarias e integradas:
+
+```bash
+cd backend
+python -m unittest discover tests
 ```
 
 ---
 
 ## 🗺️ Roadmap de Desarrollo
 
-- [x] **Fase 0:** Definición de arquitectura, pipeline y especificación técnica.
-- [ ] **Fase 1:** Configuración de Docker, esqueleto de FastAPI y cliente Gemini.
-- [ ] **Fase 2:** Implementación de parsers especializados para `.md` y `.pdf` con filtro estricto.
-- [ ] **Fase 3:** Sistema de chunking y almacenamiento vectorial persistente con ChromaDB.
-- [ ] **Fase 4:** Endpoints de subida e indexación testeables con Postman.
-- [ ] **Fase 5:** Endpoint de consulta RAG con prompt de contención y citas de fuentes.
-- [ ] **Fase 6:** Pruebas de integración y validación de respuestas.
+- [x] **Fase 0:** Definición de arquitectura, pipeline conceptual y especificación técnica.
+- [x] **Fase 1:** Dockerización, FastAPI base (`/health`, `/`), entorno de dependencias y CORS.
+- [ ] **Fase 2:** La entrada de datos y Parsers especializados.
+  - [x] **Paso 2.1:** Validador estricto de extensiones (`.md` y `.pdf`) y endpoint `POST /upload`.
+  - [ ] **Paso 2.2:** Parser de Markdown (`.md`) preservando jerarquía de títulos.
+  - [ ] **Paso 2.3:** Parser de PDF (`.pdf`) con extracción de texto por páginas.
+- [ ] **Fase 3:** Fragmentación (Chunking) inteligente y hashing determinista de chunks.
+- [ ] **Fase 4:** Integración con Google Gemini (`text-embedding-004`) y almacenamiento persistente en ChromaDB.
+- [ ] **Fase 5:** Endpoint de consulta RAG (`POST /query`) con prompt de contención y citas de fuentes.
+- [ ] **Fase 6:** Pruebas de integración completa y benchmarks de fidelidad.
 
 ---
 
