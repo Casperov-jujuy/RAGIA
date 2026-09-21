@@ -19,9 +19,11 @@ class TestDocumentUploadEndpoint(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["status"], "approved")
+        self.assertEqual(data["status"], "parsed")
         self.assertEqual(data["extension"], ".md")
         self.assertEqual(data["filename"], "notas.md")
+        self.assertEqual(data["total_sections"], 1)
+        self.assertEqual(data["sections_summary"][0]["title"], "Titulo")
 
     def test_upload_valid_pdf_success(self):
         """Verifica que subir un archivo .pdf retorne HTTP 200."""
