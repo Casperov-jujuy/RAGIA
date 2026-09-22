@@ -26,16 +26,29 @@ class TestDocumentUploadEndpoint(unittest.TestCase):
         self.assertEqual(data["sections_summary"][0]["title"], "Titulo")
 
     def test_upload_valid_pdf_success(self):
-        """Verifica que subir un archivo .pdf retorne HTTP 200."""
-        file_content = b"%PDF-1.4 dummy content"
+        """Verifica que subir un archivo .pdf válido retorne HTTP 200 con status parsed."""
+        from tests.test_pdf_parser import create_test_pdf_bytes
+        file_content = create_test_pdf_bytes("Contenido de prueba en PDF para endpoint.")
         files = {"file": ("documento.pdf", io.BytesIO(file_content), "application/pdf")}
         response = self.client.post("/api/v1/documents/upload", files=files)
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["status"], "approved")
+        self.assertEqual(data["status"], "parsed")
         self.assertEqual(data["extension"], ".pdf")
         self.assertEqual(data["filename"], "documento.pdf")
+        self.assertEqual(data["total_sections"], 1)
+        self.assertEqual(data["sections_summary"][0]["title"], "Página 1")
+
+    def test_upload_corrupt_pdf_rejected(self):
+        """Verifica que subir un archivo .pdf corrupto retorne HTTP 400 Bad Request."""
+        file_content = b"%PDF-1.4 corrupt invalid content"
+        files = {"file": ("danado.pdf", io.BytesIO(file_content), "application/pdf")}
+        response = self.client.post("/api/v1/documents/upload", files=files)
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("corrupto", data["detail"])
 
     def test_upload_invalid_image_rejected(self):
         """Verifica que subir una imagen (.png) retorne HTTP 400 Bad Request."""
