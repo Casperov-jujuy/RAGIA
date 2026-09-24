@@ -10,6 +10,13 @@ class DocumentSection(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadatos contextuales (fuente, posición, longitud)")
 
 
+class DocumentChunk(BaseModel):
+    """Representa un fragmento de texto optimizado para embeddings y búsqueda vectorial."""
+    chunk_id: str = Field(..., description="Identificador único del chunk")
+    content: str = Field(..., description="Contenido de texto del fragmento")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadatos contextuales heredados (fuente, página, sección, posición)")
+
+
 class SectionSummary(BaseModel):
     """Resumen liviano de una sección para respuestas de API."""
     title: str
@@ -24,4 +31,5 @@ class DocumentUploadResponse(BaseModel):
     status: str
     message: str
     total_sections: Optional[int] = None
+    total_chunks: Optional[int] = None
     sections_summary: Optional[List[SectionSummary]] = None

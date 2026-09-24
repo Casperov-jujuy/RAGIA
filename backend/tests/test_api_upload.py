@@ -19,14 +19,15 @@ class TestDocumentUploadEndpoint(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["status"], "parsed")
+        self.assertEqual(data["status"], "chunked")
         self.assertEqual(data["extension"], ".md")
         self.assertEqual(data["filename"], "notas.md")
         self.assertEqual(data["total_sections"], 1)
+        self.assertEqual(data["total_chunks"], 1)
         self.assertEqual(data["sections_summary"][0]["title"], "Titulo")
 
     def test_upload_valid_pdf_success(self):
-        """Verifica que subir un archivo .pdf válido retorne HTTP 200 con status parsed."""
+        """Verifica que subir un archivo .pdf válido retorne HTTP 200 con status chunked."""
         from tests.test_pdf_parser import create_test_pdf_bytes
         file_content = create_test_pdf_bytes("Contenido de prueba en PDF para endpoint.")
         files = {"file": ("documento.pdf", io.BytesIO(file_content), "application/pdf")}
@@ -34,10 +35,11 @@ class TestDocumentUploadEndpoint(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["status"], "parsed")
+        self.assertEqual(data["status"], "chunked")
         self.assertEqual(data["extension"], ".pdf")
         self.assertEqual(data["filename"], "documento.pdf")
         self.assertEqual(data["total_sections"], 1)
+        self.assertEqual(data["total_chunks"], 1)
         self.assertEqual(data["sections_summary"][0]["title"], "Página 1")
 
     def test_upload_corrupt_pdf_rejected(self):
