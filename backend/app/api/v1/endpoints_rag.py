@@ -1,21 +1,21 @@
 from fastapi import APIRouter, HTTPException, status
-from app.core.config import settings
 from app.services.embedding_service import GeminiEmbeddingService
-from app.models.schemas import QueryRequest, QueryVectorResponse
+from app.services.vector_store import ChromaVectorStore
+from app.models.schemas import QueryRequest, QueryRetrievalResponse, RetrievedChunk
 
 router = APIRouter()
 
 
 @router.post(
     "/query",
-    response_model=QueryVectorResponse,
+    response_model=QueryRetrievalResponse,
     status_code=status.HTTP_200_OK,
-    summary="Vectorizar pregunta del usuario (Paso 4.1)",
-    description="Recibe una pregunta en texto y genera su vector denso utilizando Google Gemini Embeddings."
+    summary="Búsqueda semántica (Retrieval) en ChromaDB",
+    description="Vectoriza la pregunta del usuario con Gemini y recupera los Top-K fragmentos más relevantes de ChromaDB ordenados por similitud coseno."
 )
 async def query_rag(request: QueryRequest):
     """
-    Endpoint de consulta RAG: Transforma la pregunta del usuario en vector de embedding.
+    Endpoint de consulta RAG (Paso 4.2): Vectorización + Búsqueda de similitud.
     """
     cleaned_question = request.question.strip()
     if not cleaned_question:
@@ -24,6 +24,7 @@ async def query_rag(request: QueryRequest):
             detail="La pregunta no puede estar vacía o contener solo espacios."
         )
 
+    # 1. Vectorizar la pregunta con Google Gemini
     embedding_service = GeminiEmbeddingService()
     query_vector = embedding_service.embed_text(cleaned_question)
 
@@ -33,11 +34,38 @@ async def query_rag(request: QueryRequest):
             detail="No se pudo generar el vector numérico para la pregunta enviada."
         )
 
-    preview = [round(val, 4) for val in query_vector[:5]]
+    # 2. Consultar ChromaDB para recuperar los Top-K fragmentos más relevantes
+    vector_store = ChromaVectorStore()
+    raw_hits = vector_store.similarity_search(query_vector=query_vector, top_k=request.top_k)
 
-    return QueryVectorResponse(
+    # 3. Mapear resultados a fragmentos tipados con metadatos de cita
+    retrieved_chunks = []
+    for hit in raw_hits:
+        meta = hit.get("metadata", {})
+        retrieved_chunks.append(
+            RetrievedChunk(
+                chunk_id=hit.get("chunk_id", ""),
+                content=hit.get("content", ""),
+                similarity_score=hit.get("similarity_score", 0.0),
+                source=meta.get("source", "desconocido"),
+                page=meta.get("page"),
+                section_title=meta.get("section_title"),
+                char_count=len(hit.get("content", ""))
+            )
+        )
+
+    total_found = len(retrieved_chunks)
+    if total_found > 0:
+        message = f"Se recuperaron exitosamente {total_found} fragmentos relevantes desde ChromaDB."
+    else:
+        message = (
+            "No se encontraron fragmentos relevantes. "
+            "Asegúrate de haber subido e indexado documentos (.md o .pdf) previamente a la base vectorial."
+        )
+
+    return QueryRetrievalResponse(
         question=cleaned_question,
-        embedding_dimension=len(query_vector),
-        embedding_preview=preview,
-        message="Pregunta vectorizada exitosamente con Google Gemini. Lista para búsqueda semántica en ChromaDB."
+        total_retrieved=total_found,
+        retrieved_chunks=retrieved_chunks,
+        message=message
     )

@@ -46,11 +46,28 @@ class QueryRequest(BaseModel):
         description="Pregunta del usuario para consultar sobre los documentos indexados",
         examples=["¿Cómo funciona la arquitectura de RAGIA?"]
     )
+    top_k: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        description="Cantidad máxima de fragmentos relevantes a recuperar de ChromaDB"
+    )
 
 
-class QueryVectorResponse(BaseModel):
-    """Respuesta con la pregunta vectorizada y su dimensionalidad."""
+class RetrievedChunk(BaseModel):
+    """Fragmento relevante recuperado de la base vectorial con metadatos de cita."""
+    chunk_id: str = Field(..., description="ID único del chunk")
+    content: str = Field(..., description="Texto del fragmento recuperado")
+    similarity_score: float = Field(..., description="Score de similitud coseno (0 a 1)")
+    source: str = Field(..., description="Archivo de origen del documento")
+    page: Optional[int] = Field(default=None, description="Página del documento (si es PDF)")
+    section_title: Optional[str] = Field(default=None, description="Título de la sección (si es Markdown o identificado)")
+    char_count: int = Field(..., description="Cantidad de caracteres del fragmento")
+
+
+class QueryRetrievalResponse(BaseModel):
+    """Respuesta de recuperación semántica con los Top-K fragmentos más relevantes."""
     question: str
-    embedding_dimension: int
-    embedding_preview: List[float]
+    total_retrieved: int
+    retrieved_chunks: List[RetrievedChunk]
     message: str
