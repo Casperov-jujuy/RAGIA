@@ -71,3 +71,12 @@ class QueryRetrievalResponse(BaseModel):
     total_retrieved: int
     retrieved_chunks: List[RetrievedChunk]
     message: str
+
+
+class PromptPreviewResponse(BaseModel):
+    """Respuesta estructurada para la vista previa del prompt con contención y citas."""
+    question: str = Field(..., description="Pregunta formulada por el usuario")
+    system_instruction: str = Field(..., description="Directivas del sistema de contención estricta y formato de citas")
+    formatted_prompt: str = Field(..., description="Prompt dinámico completo con el contexto inyectado y la pregunta")
+    total_sources: int = Field(..., description="Cantidad de fuentes o fragmentos incluidos en el contexto")
+    sources: List[Dict[str, Any]] = Field(default_factory=list, description="Lista de fuentes y metadatos de los fragmentos inyectados")

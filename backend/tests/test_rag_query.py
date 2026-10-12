@@ -97,6 +97,52 @@ class TestRAGQueryEndpoint(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertIn("No se pudo generar", response.json()["detail"])
 
+    @patch("app.api.v1.endpoints_rag.ChromaVectorStore.similarity_search")
+    @patch("app.api.v1.endpoints_rag.GeminiEmbeddingService.embed_text")
+    def test_prompt_preview_success(self, mock_embed_text, mock_sim_search):
+        """Verifica la generación del prompt con contención y citas en /prompt-preview."""
+        mock_embed_text.return_value = [0.123] * 768
+        mock_sim_search.return_value = [
+            {
+                "chunk_id": "guia.md_chunk_0",
+                "content": "RAGIA soporta archivos Markdown y PDF únicamente.",
+                "metadata": {"source": "guia.md", "section_title": "Formatos"},
+                "similarity_score": 0.9412,
+            }
+        ]
+
+        payload = {"question": "¿Qué formatos soporta?", "top_k": 1}
+        response = self.client.post("/api/v1/rag/prompt-preview", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["question"], "¿Qué formatos soporta?")
+        self.assertIn("CONTENCIÓN ESTRICTA", data["system_instruction"])
+        self.assertIn("CITACIÓN OBLIGATORIA", data["system_instruction"])
+        self.assertIn("RAGIA soporta archivos Markdown y PDF únicamente.", data["formatted_prompt"])
+        self.assertEqual(data["total_sources"], 1)
+        self.assertEqual(data["sources"][0]["source"], "guia.md")
+        self.assertEqual(data["sources"][0]["citation_tag"], "[Fuente: guia.md, Sección: Formatos]")
+
+    def test_prompt_preview_empty_question_rejected(self):
+        """Verifica que una pregunta vacía en /prompt-preview sea rechazada con 400."""
+        response = self.client.post("/api/v1/rag/prompt-preview", json={"question": "   "})
+        self.assertEqual(response.status_code, 400)
+
+    @patch("app.api.v1.endpoints_rag.ChromaVectorStore.similarity_search")
+    @patch("app.api.v1.endpoints_rag.GeminiEmbeddingService.embed_text")
+    def test_prompt_preview_empty_store(self, mock_embed_text, mock_sim_search):
+        """Verifica la respuesta de /prompt-preview cuando no hay documentos indexados."""
+        mock_embed_text.return_value = [0.123] * 768
+        mock_sim_search.return_value = []
+
+        response = self.client.post("/api/v1/rag/prompt-preview", json={"question": "¿Hay algo?"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total_sources"], 0)
+        self.assertEqual(data["sources"], [])
+        self.assertIn("No se encontraron fragmentos relevantes", data["formatted_prompt"])
+
 
 if __name__ == "__main__":
     unittest.main()
