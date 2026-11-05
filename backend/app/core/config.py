@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # Configuración de Google Gemini
     GEMINI_API_KEY: str = ""
-    GEMINI_LLM_MODEL: str = "gemini-1.5-flash"
+    GEMINI_LLM_MODEL: str = "gemini-2.0-flash"
     GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     # Rutas de almacenamiento

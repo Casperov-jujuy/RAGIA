@@ -80,3 +80,27 @@ class PromptPreviewResponse(BaseModel):
     formatted_prompt: str = Field(..., description="Prompt dinámico completo con el contexto inyectado y la pregunta")
     total_sources: int = Field(..., description="Cantidad de fuentes o fragmentos incluidos en el contexto")
     sources: List[Dict[str, Any]] = Field(default_factory=list, description="Lista de fuentes y metadatos de los fragmentos inyectados")
+
+
+class RAGQueryResponse(BaseModel):
+    """Respuesta final fundamentada generada por Gemini Flash con citas a fuentes."""
+    question: str = Field(..., description="Pregunta formulada por el usuario")
+    answer: str = Field(..., description="Respuesta final fundamentada generada por el LLM o respuesta de contención")
+    total_sources: int = Field(..., description="Cantidad de fragmentos contextuales recuperados de ChromaDB")
+    retrieved_chunks: List[RetrievedChunk] = Field(default_factory=list, description="Lista de fragmentos recuperados con metadatos de cita")
+    model_used: str = Field(..., description="Modelo de lenguaje utilizado para generar la respuesta")
+
+
+class DocumentListItem(BaseModel):
+    """Información agregada de un documento indexado en ChromaDB."""
+    filename: str = Field(..., description="Nombre del archivo almacenado")
+    total_chunks: int = Field(..., description="Cantidad total de fragmentos indexados")
+    total_pages: Optional[int] = Field(default=None, description="Total de páginas procesadas (si es PDF)")
+    total_sections: Optional[int] = Field(default=None, description="Total de secciones identificadas (si es Markdown)")
+
+
+class DocumentDeleteResponse(BaseModel):
+    """Resultado de la operación de eliminación de un documento en ChromaDB."""
+    filename: str = Field(..., description="Nombre del archivo eliminado")
+    deleted_chunks: int = Field(..., description="Cantidad de fragmentos y vectores eliminados")
+    message: str = Field(..., description="Mensaje descriptivo del resultado")

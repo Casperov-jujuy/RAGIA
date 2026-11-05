@@ -3,18 +3,20 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.prompt_service import NO_INFO_FALLBACK
 
 
 class TestRAGQueryEndpoint(unittest.TestCase):
-    """Suite de pruebas para el endpoint POST /api/v1/rag/query (Paso 4.2: Retrieval en ChromaDB)."""
+    """Suite de pruebas para los endpoints RAG (/query, /retrieve, /prompt-preview)."""
 
     def setUp(self):
         self.client = TestClient(app)
 
+    @patch("app.api.v1.endpoints_rag.GeminiGenerationService.generate_response")
     @patch("app.api.v1.endpoints_rag.ChromaVectorStore.similarity_search")
     @patch("app.api.v1.endpoints_rag.GeminiEmbeddingService.embed_text")
-    def test_query_retrieval_success(self, mock_embed_text, mock_sim_search):
-        """Verifica la recuperación exitosa de fragmentos relevantes desde ChromaDB."""
+    def test_query_rag_full_success(self, mock_embed_text, mock_sim_search, mock_generate):
+        """Verifica el flujo RAG completo en POST /api/v1/rag/query (Paso 4.4: Generación con Gemini Flash)."""
         mock_embed_text.return_value = [0.123] * 768
         mock_sim_search.return_value = [
             {
@@ -30,6 +32,10 @@ class TestRAGQueryEndpoint(unittest.TestCase):
                 "similarity_score": 0.8845,
             }
         ]
+        mock_generate.return_value = (
+            "Para instalar el sistema sigue las instrucciones [Fuente: manual.pdf, Página 2].",
+            "gemini-2.0-flash"
+        )
 
         payload = {"question": "¿Cómo se instala el sistema?", "top_k": 2}
         response = self.client.post("/api/v1/rag/query", json=payload)
@@ -37,22 +43,20 @@ class TestRAGQueryEndpoint(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["question"], payload["question"])
-        self.assertEqual(data["total_retrieved"], 2)
+        self.assertEqual(data["total_sources"], 2)
         self.assertEqual(len(data["retrieved_chunks"]), 2)
-
-        first_chunk = data["retrieved_chunks"][0]
-        self.assertEqual(first_chunk["chunk_id"], "manual.pdf_chunk_1")
-        self.assertEqual(first_chunk["source"], "manual.pdf")
-        self.assertEqual(first_chunk["page"], 2)
-        self.assertEqual(first_chunk["similarity_score"], 0.9521)
+        self.assertEqual(data["model_used"], "gemini-2.0-flash")
+        self.assertIn("Para instalar el sistema", data["answer"])
+        self.assertIn("[Fuente: manual.pdf, Página 2]", data["answer"])
 
         mock_embed_text.assert_called_once_with(payload["question"])
         mock_sim_search.assert_called_once_with(query_vector=[0.123] * 768, top_k=2)
+        mock_generate.assert_called_once()
 
     @patch("app.api.v1.endpoints_rag.ChromaVectorStore.similarity_search")
     @patch("app.api.v1.endpoints_rag.GeminiEmbeddingService.embed_text")
-    def test_query_retrieval_empty_store(self, mock_embed_text, mock_sim_search):
-        """Verifica la respuesta cuando no hay documentos indexados en ChromaDB."""
+    def test_query_rag_empty_store_returns_direct_fallback(self, mock_embed_text, mock_sim_search):
+        """Verifica que si no hay fragmentos indexados, se responda de inmediato con la directiva anti-alucinaciones sin llamar al LLM."""
         mock_embed_text.return_value = [0.123] * 768
         mock_sim_search.return_value = []
 
@@ -61,8 +65,42 @@ class TestRAGQueryEndpoint(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["total_retrieved"], 0)
+        self.assertEqual(data["total_sources"], 0)
         self.assertEqual(data["retrieved_chunks"], [])
+        self.assertEqual(data["answer"], NO_INFO_FALLBACK)
+        self.assertEqual(data["model_used"], "contencion-directa")
+
+    @patch("app.api.v1.endpoints_rag.ChromaVectorStore.similarity_search")
+    @patch("app.api.v1.endpoints_rag.GeminiEmbeddingService.embed_text")
+    def test_retrieve_endpoint_success(self, mock_embed_text, mock_sim_search):
+        """Verifica la recuperación semántica pura en POST /api/v1/rag/retrieve."""
+        mock_embed_text.return_value = [0.123] * 768
+        mock_sim_search.return_value = [
+            {
+                "chunk_id": "manual.pdf_chunk_1",
+                "content": "Contenido relevante.",
+                "metadata": {"source": "manual.pdf", "page": 1},
+                "similarity_score": 0.91,
+            }
+        ]
+
+        response = self.client.post("/api/v1/rag/retrieve", json={"question": "¿Pregunta?"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total_retrieved"], 1)
+        self.assertEqual(data["retrieved_chunks"][0]["source"], "manual.pdf")
+
+    @patch("app.api.v1.endpoints_rag.ChromaVectorStore.similarity_search")
+    @patch("app.api.v1.endpoints_rag.GeminiEmbeddingService.embed_text")
+    def test_retrieve_endpoint_empty_store(self, mock_embed_text, mock_sim_search):
+        """Verifica la respuesta de POST /api/v1/rag/retrieve cuando no hay datos."""
+        mock_embed_text.return_value = [0.123] * 768
+        mock_sim_search.return_value = []
+
+        response = self.client.post("/api/v1/rag/retrieve", json={"question": "¿Pregunta?"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total_retrieved"], 0)
         self.assertIn("No se encontraron fragmentos relevantes", data["message"])
 
     def test_query_empty_question_rejected(self):

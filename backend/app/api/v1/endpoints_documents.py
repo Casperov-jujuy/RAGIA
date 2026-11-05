@@ -8,7 +8,12 @@ from app.ingestion.pdf_parser import PDFParser
 from app.ingestion.chunker import TextChunker
 from app.services.embedding_service import GeminiEmbeddingService
 from app.services.vector_store import ChromaVectorStore
-from app.models.schemas import DocumentUploadResponse, SectionSummary
+from app.models.schemas import (
+    DocumentUploadResponse,
+    SectionSummary,
+    DocumentListItem,
+    DocumentDeleteResponse,
+)
 
 router = APIRouter()
 
@@ -95,19 +100,20 @@ async def upload_document(file: UploadFile = File(...)):
 
 @router.get(
     "",
-    response_model=List[Dict[str, Any]],
+    response_model=List[DocumentListItem],
     status_code=status.HTTP_200_OK,
     summary="Listar documentos indexados en ChromaDB",
     description="Retorna la lista de todos los documentos actualmente almacenados en ChromaDB con el conteo de chunks y páginas/secciones."
 )
 async def list_documents():
-    """Obtiene el listado de documentos guardados en la base vectorial."""
+    """Obtiene el listado estructurado de documentos guardados en la base vectorial."""
     vector_store = ChromaVectorStore()
     return vector_store.list_documents()
 
 
 @router.delete(
     "/{filename}",
+    response_model=DocumentDeleteResponse,
     status_code=status.HTTP_200_OK,
     summary="Eliminar documento de ChromaDB",
     description="Elimina todos los fragmentos y vectores de un archivo específico de la base de datos persistente."
@@ -123,8 +129,8 @@ async def delete_document(filename: str):
             detail=f"No se encontraron fragmentos para el archivo '{filename}' en ChromaDB."
         )
 
-    return {
-        "filename": filename,
-        "deleted_chunks": deleted_count,
-        "message": f"Documento '{filename}' y sus {deleted_count} fragmentos eliminados exitosamente de ChromaDB."
-    }
+    return DocumentDeleteResponse(
+        filename=filename,
+        deleted_chunks=deleted_count,
+        message=f"Documento '{filename}' y sus {deleted_count} fragmentos eliminados exitosamente de ChromaDB."
+    )

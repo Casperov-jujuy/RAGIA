@@ -2,12 +2,14 @@ from typing import List
 from fastapi import APIRouter, HTTPException, status
 from app.services.embedding_service import GeminiEmbeddingService
 from app.services.vector_store import ChromaVectorStore
-from app.services.prompt_service import PromptBuilder
+from app.services.prompt_service import PromptBuilder, NO_INFO_FALLBACK
+from app.services.generation_service import GeminiGenerationService
 from app.models.schemas import (
     QueryRequest,
     QueryRetrievalResponse,
     RetrievedChunk,
     PromptPreviewResponse,
+    RAGQueryResponse,
 )
 
 router = APIRouter()
@@ -46,14 +48,70 @@ def _retrieve_chunks(cleaned_question: str, top_k: int) -> List[RetrievedChunk]:
 
 @router.post(
     "/query",
-    response_model=QueryRetrievalResponse,
+    response_model=RAGQueryResponse,
     status_code=status.HTTP_200_OK,
-    summary="Búsqueda semántica (Retrieval) en ChromaDB",
-    description="Vectoriza la pregunta del usuario con Gemini y recupera los Top-K fragmentos más relevantes de ChromaDB ordenados por similitud coseno."
+    summary="Consulta RAG completa (Generación fundamentada con Gemini Flash)",
+    description=(
+        "Pipeline RAG completo: Vectoriza la pregunta con Gemini, recupera los fragmentos más relevantes de ChromaDB, "
+        "construye un prompt con contención estricta y genera la respuesta final fundamentada con citas usando Gemini Flash."
+    )
 )
 async def query_rag(request: QueryRequest):
     """
-    Endpoint de consulta RAG (Paso 4.2): Vectorización + Búsqueda de similitud.
+    Endpoint RAG completo (Paso 4.4): Retrieval + Prompt con contención + Generación fundamentada.
+    """
+    cleaned_question = request.question.strip()
+    if not cleaned_question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La pregunta no puede estar vacía o contener solo espacios."
+        )
+
+    retrieved_chunks = _retrieve_chunks(cleaned_question, request.top_k)
+
+    # Si la base de datos no contiene fragmentos indexados, responder con la directiva anti-alucinaciones directa
+    if not retrieved_chunks:
+        return RAGQueryResponse(
+            question=cleaned_question,
+            answer=NO_INFO_FALLBACK,
+            total_sources=0,
+            retrieved_chunks=[],
+            model_used="contencion-directa"
+        )
+
+    # Construir el prompt con contención estricta y formato de citas
+    prompt_builder = PromptBuilder()
+    system_instruction, formatted_prompt = prompt_builder.build_prompt(
+        question=cleaned_question,
+        retrieved_chunks=retrieved_chunks
+    )
+
+    # Generar la respuesta final utilizando Gemini Flash
+    generation_service = GeminiGenerationService()
+    answer, model_used = generation_service.generate_response(
+        system_instruction=system_instruction,
+        user_prompt=formatted_prompt
+    )
+
+    return RAGQueryResponse(
+        question=cleaned_question,
+        answer=answer,
+        total_sources=len(retrieved_chunks),
+        retrieved_chunks=retrieved_chunks,
+        model_used=model_used
+    )
+
+
+@router.post(
+    "/retrieve",
+    response_model=QueryRetrievalResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Búsqueda semántica (Retrieval puro) en ChromaDB",
+    description="Vectoriza la pregunta del usuario con Gemini y recupera los Top-K fragmentos más relevantes de ChromaDB ordenados por similitud coseno sin llamada al LLM generativo."
+)
+async def retrieve_chunks_only(request: QueryRequest):
+    """
+    Endpoint de recuperación semántica pura (Paso 4.2).
     """
     cleaned_question = request.question.strip()
     if not cleaned_question:

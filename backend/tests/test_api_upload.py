@@ -65,9 +65,9 @@ class TestDocumentUploadEndpoint(unittest.TestCase):
 
     @patch("app.api.v1.endpoints_documents.ChromaVectorStore.list_documents")
     def test_list_documents_endpoint(self, mock_list):
-        """Verifica que GET /api/v1/documents devuelva la lista de documentos indexados."""
+        """Verifica que GET /api/v1/documents devuelva la lista tipada de documentos indexados."""
         mock_list.return_value = [
-            {"filename": "guia.md", "total_chunks": 3},
+            {"filename": "guia.md", "total_chunks": 3, "total_sections": 2},
             {"filename": "manual.pdf", "total_chunks": 5, "total_pages": 2},
         ]
         response = self.client.get("/api/v1/documents")
@@ -75,14 +75,19 @@ class TestDocumentUploadEndpoint(unittest.TestCase):
         data = response.json()
         self.assertEqual(len(data), 2)
         self.assertEqual(data[0]["filename"], "guia.md")
+        self.assertEqual(data[0]["total_chunks"], 3)
+        self.assertEqual(data[0]["total_sections"], 2)
+        self.assertEqual(data[1]["filename"], "manual.pdf")
+        self.assertEqual(data[1]["total_pages"], 2)
 
     @patch("app.api.v1.endpoints_documents.ChromaVectorStore.delete_by_source")
     def test_delete_document_success(self, mock_delete):
-        """Verifica que DELETE /api/v1/documents/{filename} elimine los fragmentos."""
+        """Verifica que DELETE /api/v1/documents/{filename} elimine los fragmentos y retorne DocumentDeleteResponse."""
         mock_delete.return_value = 4
         response = self.client.delete("/api/v1/documents/archivo_a_borrar.md")
         self.assertEqual(response.status_code, 200)
         data = response.json()
+        self.assertEqual(data["filename"], "archivo_a_borrar.md")
         self.assertEqual(data["deleted_chunks"], 4)
         self.assertIn("eliminados", data["message"])
 
